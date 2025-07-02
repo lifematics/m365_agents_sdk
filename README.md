@@ -1,3 +1,10 @@
+# このリポジトリについて
+[microsoft/Agents](https://github.com/microsoft/Agents) のフォーク。改修点は以下。
+
+* [samples/basic/copilotstudio-client/nodejs](samples/basic/copilotstudio-client/nodejs): Copilot Studioで定義したエージェントに対して、CSVを用いて一括でクエリをリクエストして、その結果を記録できるように改修
+
+=== 以下、フォーク元のREADME ===
+```
 # Microsoft 365 Agents SDK
 
 With the Microsoft 365 Agents SDK, you can create agents deployable to channels of your choice, such as Microsoft 365 Copilot, Microsoft Teams, Web & Custom Apps and more, with scaffolding to handle the required communication. Developers can use the AI Services of their choice, and make the agents they build available using the channel management capabilities of the SDK.
@@ -90,3 +97,5 @@ Any use of third-party trademarks or logos are subject to those third-party's po
 [.NET Documentation]: https://aka.ms/Agents-net-docs
 [JavaScript Documentation]: https://aka.ms/agents-js-docs
 [Python Documentation]: https://aka.ms/agents-python-docs
+
+```
