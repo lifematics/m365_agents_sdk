@@ -6,8 +6,8 @@
 
 ```bash
 # 環境設定
-cp .env.docker .env
-# .envファイルを編集してAzure OpenAI設定を確認
+cp .env.template .env.docker
+# .env.docker ファイルを編集してAzure OpenAI キーを設定
 
 docker compose up -d
 
