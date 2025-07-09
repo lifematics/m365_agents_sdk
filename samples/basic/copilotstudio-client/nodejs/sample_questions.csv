@@ -1,6 +1,6 @@
-question,category
-What is the weather like today?,General
-How can I reset my password?,Technical Support
-What are your business hours?,Information
-Can you help me with my account?,Customer Service
-What services do you offer?,Information
+question,reference,category
+今日の天気はどうですか？,晴れです,一般
+パスワードをリセットするにはどうすればよいですか？,「パスワードを忘れたら」をクリックして、画面の案内に従ってください,技術サポート
+営業時間を教えてください,9:00-18:00です,情報
+アカウントについて手伝ってもらえますか？,何を手伝えばいいかを教えて下さい,カスタマーサービス
+どのようなサービスを提供していますか？,ソフトウェア開発、インフラ構築などを提供しています,情報

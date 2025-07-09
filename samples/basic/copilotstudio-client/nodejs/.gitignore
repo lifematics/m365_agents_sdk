@@ -1,0 +1,16 @@
+output/
+*.png
+*.jpg
+*.jpeg
+*.csv
+*.json
+*.html
+*.pdf
+.env
+.env.local
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.coverage
+.DS_Store
