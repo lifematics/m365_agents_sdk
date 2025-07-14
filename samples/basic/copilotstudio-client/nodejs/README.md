@@ -73,47 +73,65 @@ With the above information, you can now run the client `CopilostStudioClient` sa
   appClientId="" # App ID of the App Registration used to login, this should be in the same tenant as the CopilotStudio environment.
 ```
 
-3. Run the CopilotStudioClient sample using `npm start`, which will install the packages, build the project and run it.
+3. Run the CopilotStudioClient sample using `npm start <input.csv>`, which will install the packages, build the project and run it.
 
-This should challenge you to login and connect to the Copilot Studio Hosted agent, allowing you to communicate via a console interface.
+This will process questions from a CSV file and connect to the Copilot Studio Hosted agent, requiring you to login for authentication.
 
-## Usage Modes
+## Installation
 
-This sample supports two modes of operation:
-
-### Interactive Mode (Default)
-
-Run the application without any parameters for interactive conversation:
+To install the necessary dependencies, run:
 
 ```bash
-npm start
+npm run build
 ```
 
-### CSV Batch Processing Mode
+## Usage
 
-Process multiple questions from a CSV file and save the answers:
+This sample processes multiple questions from a CSV file and saves the answers. It supports both Excel and CSV output formats.
+
+### Basic Usage
+
+Process questions from a CSV file and save to Excel (default):
 
 ```bash
-npm start -- --csv <input.csv> [output.csv]
+npm start <input.csv> [output.xlsx]
+```
+
+### CSV Output Mode
+
+Output results as CSV instead of Excel:
+
+```bash
+npm start <input.csv> --output-in-csv [output.csv]
 ```
 
 #### CSV Format
 
 - The input CSV file must contain a `question` column with the questions to ask the agent
 - Additional columns are preserved in the output
-- The output CSV will include all original columns plus an `answer` column containing the agent's responses
+- The output will include all original columns plus additional columns:
+  - `answer`: The agent's response
+  - `citations`: Citation information from the agent's response
+  - `citationTexts`: Full text of citations
+  - `searchTerms`: Search terms used by the agent
 
 #### Examples
 
 ```bash
-# Process sample_questions.csv and save to sample_questions_with_answers.csv
-npm start -- --csv sample_questions.csv sample_questions_with_answers.csv
+# Process sample_questions.csv and save to questions_with_answers.xlsx (Excel format)
+npm start sample_questions.csv
+
+# Process sample_questions.csv and save to custom_output.xlsx
+npm start sample_questions.csv custom_output.xlsx
+
+# Process sample_questions.csv and save as CSV format
+npm start sample_questions.csv --output-in-csv
 
 # Process sample_questions.csv and save to custom_output.csv
-npm start -- --csv sample_questions.csv custom_output.csv
+npm start sample_questions.csv --output-in-csv custom_output.csv
 
 # Show help
-npm start -- --help
+npm start --help
 ```
 
 #### Sample CSV Format
@@ -125,4 +143,18 @@ How can I reset my password?,Technical Support
 What are your business hours?,Information
 ```
 
-A sample CSV file (`sample_questions.csv`) is included for testing.
+The output will include additional columns with the agent's responses and metadata:
+
+```csv
+question,category,answer,citations,citationTexts,searchTerms
+What is the weather like today?,General,"I don't have access to real-time weather data...","Title: Weather API Documentation...","Full citation text here...","Source: Knowledge Base, Term: weather"
+```
+
+## Dependencies
+
+This sample uses the following key dependencies:
+
+- `@microsoft/agents-copilotstudio-client`: For connecting to Copilot Studio agents
+- `@azure/msal-node`: For Azure authentication
+- `csv-parser` and `csv-writer`: For CSV file processing
+- `xlsx`: For Excel file output support
