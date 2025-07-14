@@ -176,7 +176,7 @@ const processCSVQuestions = async (csvFilePath: string, outputCsvPath: string): 
                 
                 // Store full citation texts in separate column
                 const citationFullTexts = citations.map(citation => {
-                  return `Title: ${citation.title || 'N/A'}\nURL: ${citation.url || 'N/A'}\nFull Text: ${citation.text || 'N/A'}`
+                  return citation.text || 'N/A'
                 }).join('\n\n---\n\n')
                 question.citationTexts = citationFullTexts
               }
@@ -244,9 +244,15 @@ const writeResultsToCSV = async (results: QuestionRow[], outputPath: string): Pr
   allColumns.add('searchTerms')
   
   const columnNames = Array.from(allColumns)
+  // Write UTF-8 BOM to the file before writing CSV content
+  fs.writeFileSync(outputPath, '\uFEFF', { encoding: 'utf8' })
+  // Write header row after BOM
+  fs.appendFileSync(outputPath, columnNames.join(',') + '\n', { encoding: 'utf8' })
+
   const csvWriter = createCsvWriter.createObjectCsvWriter({
     path: outputPath,
-    header: columnNames.map(name => ({ id: name, title: name }))
+    header: columnNames.map(name => ({ id: name, title: name })),
+    append: true // Append after BOM and header
   })
   
   await csvWriter.writeRecords(results)
