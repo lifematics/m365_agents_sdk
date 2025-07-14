@@ -7,7 +7,6 @@ import * as msal from '@azure/msal-node'
 import { Activity, ActivityTypes, CardAction } from '@microsoft/agents-activity'
 import { ConnectionSettings, loadCopilotStudioConnectionSettingsFromEnv, CopilotStudioClient } from '@microsoft/agents-copilotstudio-client'
 import pkg from '@microsoft/agents-copilotstudio-client/package.json' with { type: 'json' }
-import readline from 'readline'
 import open from 'open'
 import os from 'os'
 import path from 'path'
@@ -80,32 +79,6 @@ const createClient = async (): Promise<CopilotStudioClient> => {
   const copilotClient = new CopilotStudioClient(settings, token)
   console.log(`Copilot Studio Client Version: ${pkg.version}, running with settings: ${JSON.stringify(settings, null, 2)}`)
   return copilotClient
-}
-
-const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout
-})
-
-const askQuestion = async (copilotClient: CopilotStudioClient, conversationId: string) => {
-  rl.question('\n>>>: ', async (answer) => {
-    if (answer.toLowerCase() === 'exit') {
-      rl.close()
-      return
-    } else if (answer.length > 0){
-      const replies = await copilotClient.askQuestionAsync(answer, conversationId)
-      replies.forEach((act: Activity) => {
-        if (act.type === ActivityTypes.Message) {
-          console.log(`\n${act.text}`)
-          act.suggestedActions?.actions.forEach((action: CardAction) => console.log(action.value))
-        } else if (act.type === ActivityTypes.EndOfConversation) {
-          console.log(`\n${act.text}`)
-          rl.close()
-        }
-      })
-    }
-    await askQuestion(copilotClient, conversationId)
-  })
 }
 
 const processCSVQuestions = async (csvFilePath: string, outputCsvPath: string, outputAsCsv: boolean = false): Promise<void> => {
@@ -362,9 +335,8 @@ const writeResultsToCSV = async (results: QuestionRow[], outputPath: string): Pr
 const showUsage = () => {
   console.log(`
 Usage:
-  Interactive mode: npm start
-  CSV batch mode:   npm start -- --csv <input.csv> [output.xlsx]
-  CSV batch mode:   npm start -- --csv <input.csv> --output-in-csv [output.csv]
+  npm start <input.csv> [output.xlsx]
+  npm start <input.csv> --output-in-csv [output.csv]
 
 CSV Format:
   The input CSV file should have a 'question' column containing the questions to ask.
@@ -373,10 +345,10 @@ CSV Format:
   Use --output-in-csv flag to output results as CSV instead of Excel.
 
 Examples:
-  npm start -- --csv questions.csv
-  npm start -- --csv questions.csv answers.xlsx
-  npm start -- --csv questions.csv --output-in-csv
-  npm start -- --csv questions.csv --output-in-csv answers.csv
+  npm start questions.csv
+  npm start questions.csv answers.xlsx
+  npm start questions.csv --output-in-csv
+  npm start questions.csv --output-in-csv answers.csv
 `)
 }
 
@@ -388,9 +360,8 @@ const main = async () => {
     return
   }
   
-  if (args.length >= 2 && args[0] === '--csv') {
-    // CSV mode
-    const inputCsvPath = args[1]
+  if (args.length >= 1) {
+    const inputCsvPath = args[0]
     const outputAsCsv = args.includes('--output-in-csv')
     
     // Determine output file path
@@ -405,7 +376,7 @@ const main = async () => {
       }
     } else {
       // Excel output (default)
-      outputCsvPath = args[2] || inputCsvPath.replace('.csv', '_with_answers.xlsx')
+      outputCsvPath = args[1] || inputCsvPath.replace('.csv', '_with_answers.xlsx')
     }
     
     if (!fs.existsSync(inputCsvPath)) {
@@ -426,13 +397,9 @@ const main = async () => {
       process.exit(1)
     }
   } else {
-    // Interactive mode (existing functionality)
-    console.log('Starting interactive mode. Use --help for more options.')
-    const copilotClient = await createClient()
-    const act: Activity = await copilotClient.startConversationAsync(true)
-    console.log('\nSuggested Actions: ')
-    act.suggestedActions?.actions.forEach((action: CardAction) => console.log(action.value))
-    await askQuestion(copilotClient, act.conversation?.id!)
+    console.error('Error: CSV file path is required.')
+    showUsage()
+    process.exit(1)
   }
 }
 
