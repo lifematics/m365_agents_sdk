@@ -14,6 +14,7 @@ import path from 'path'
 import fs from 'fs'
 import csv from 'csv-parser'
 import * as createCsvWriter from 'csv-writer'
+import * as XLSX from 'xlsx'
 
 import { MsalCachePlugin } from './msalCachePlugin.js'
 
@@ -107,7 +108,7 @@ const askQuestion = async (copilotClient: CopilotStudioClient, conversationId: s
   })
 }
 
-const processCSVQuestions = async (csvFilePath: string, outputCsvPath: string): Promise<void> => {
+const processCSVQuestions = async (csvFilePath: string, outputCsvPath: string, outputAsCsv: boolean = false): Promise<void> => {
   console.log(`Processing CSV file: ${csvFilePath}`)
   
   const copilotClient = await createClient()
@@ -167,7 +168,7 @@ const processCSVQuestions = async (csvFilePath: string, outputCsvPath: string): 
               
               question.answer = answer.trim()
               
-              // Format citations for CSV
+              // Format citations for output
               if (citations.length > 0) {
                 const citationSummary = citations.map(citation => {
                   return `Title: ${citation.title || 'N/A'}\nURL: ${citation.url || 'N/A'}\nText: ${(citation.text || '').substring(0, 200)}...`
@@ -181,7 +182,7 @@ const processCSVQuestions = async (csvFilePath: string, outputCsvPath: string): 
                 question.citationTexts = citationFullTexts
               }
               
-              // Format search terms for CSV
+              // Format search terms for output
               if (searchTerms.length > 0) {
                 const searchTermsSummary = searchTerms.map(term => {
                   return `Source: ${term.source || 'N/A'}, Term: ${term.term || 'N/A'}`
@@ -210,9 +211,14 @@ const processCSVQuestions = async (csvFilePath: string, outputCsvPath: string): 
             }
           }
           
-          // Write results to output CSV
-          await writeResultsToCSV(results, outputCsvPath)
-          console.log(`\nResults written to: ${outputCsvPath}`)
+          // Write results to output file based on format choice
+          if (outputAsCsv) {
+            await writeResultsToCSV(results, outputCsvPath)
+            console.log(`\nResults written to CSV: ${outputCsvPath}`)
+          } else {
+            await writeResultsToExcel(results, outputCsvPath)
+            console.log(`\nResults written to Excel: ${outputCsvPath}`)
+          }
           resolve()
           
         } catch (error) {
@@ -223,6 +229,101 @@ const processCSVQuestions = async (csvFilePath: string, outputCsvPath: string): 
         reject(error)
       })
   })
+}
+
+const writeResultsToExcel = async (results: QuestionRow[], outputPath: string): Promise<void> => {
+  if (results.length === 0) {
+    throw new Error('No results to write')
+  }
+  
+  // Get all unique column names from the results
+  const allColumns = new Set<string>()
+  results.forEach(row => {
+    Object.keys(row).forEach(key => allColumns.add(key))
+  })
+  
+  // Ensure 'question', 'answer', 'citations', 'citationTexts', and 'searchTerms' columns are included
+  allColumns.add('question')
+  allColumns.add('answer')
+  allColumns.add('citations')
+  allColumns.add('citationTexts')
+  allColumns.add('searchTerms')
+  
+  const columnNames = Array.from(allColumns)
+  
+  // Create workbook and worksheet
+  const workbook = XLSX.utils.book_new()
+  const worksheet: XLSX.WorkSheet = {}
+  
+  // Set column widths - make citation columns wider
+  const columnWidths = columnNames.map(col => {
+    if (col === 'citations' || col === 'citationTexts' || col === 'searchTerms') {
+      return { wch: 50 } // Wide columns for citation data
+    } else if (col === 'question' || col === 'answer') {
+      return { wch: 30 } // Medium width for questions and answers
+    } else {
+      return { wch: 15 } // Default width for other columns
+    }
+  })
+  worksheet['!cols'] = columnWidths
+  
+  // Add header row
+  columnNames.forEach((colName, colIndex) => {
+    const cellAddress = XLSX.utils.encode_cell({ r: 0, c: colIndex })
+    worksheet[cellAddress] = {
+      v: colName,
+      t: 's',
+      s: {
+        font: { bold: true },
+        alignment: {
+          wrapText: true,
+          vertical: 'top',
+          horizontal: 'center'
+        }
+      }
+    }
+  })
+  
+  // Add data rows
+  results.forEach((row, rowIndex) => {
+    const actualRowIndex = rowIndex + 1 // +1 because header is at row 0
+    columnNames.forEach((colName, colIndex) => {
+      const cellAddress = XLSX.utils.encode_cell({ r: actualRowIndex, c: colIndex })
+      const cellValue = row[colName] || ''
+      
+      worksheet[cellAddress] = {
+        v: cellValue,
+        t: 's', // String type
+        s: {
+          alignment: {
+            wrapText: true,
+            vertical: 'top'
+          }
+        }
+      }
+    })
+  })
+  
+  // Set row heights - make rows taller to accommodate long text
+  const rowHeights = []
+  rowHeights[0] = { hpt: 25 } // Header row height
+  for (let i = 1; i <= results.length; i++) {
+    rowHeights[i] = { hpt: 120 } // Data row height - taller for multi-line content
+  }
+  worksheet['!rows'] = rowHeights
+  
+  // Set the range for the worksheet
+  const range = XLSX.utils.encode_range({
+    s: { c: 0, r: 0 },
+    e: { c: columnNames.length - 1, r: results.length }
+  })
+  worksheet['!ref'] = range
+  
+  // Add worksheet to workbook
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Results')
+  
+  // Write to file
+  XLSX.writeFile(workbook, outputPath)
 }
 
 const writeResultsToCSV = async (results: QuestionRow[], outputPath: string): Promise<void> => {
@@ -254,7 +355,7 @@ const writeResultsToCSV = async (results: QuestionRow[], outputPath: string): Pr
     header: columnNames.map(name => ({ id: name, title: name })),
     append: true // Append after BOM and header
   })
-  
+
   await csvWriter.writeRecords(results)
 }
 
@@ -262,15 +363,20 @@ const showUsage = () => {
   console.log(`
 Usage:
   Interactive mode: npm start
-  CSV batch mode:   npm start -- --csv <input.csv> [output.csv]
+  CSV batch mode:   npm start -- --csv <input.csv> [output.xlsx]
+  CSV batch mode:   npm start -- --csv <input.csv> --output-in-csv [output.csv]
 
 CSV Format:
   The input CSV file should have a 'question' column containing the questions to ask.
-  The output CSV will include all original columns plus an 'answer' column with responses.
+  The output Excel file will include all original columns plus an 'answer' column with responses.
+  Long text columns (citations, citationTexts, searchTerms) will have wider columns and taller rows.
+  Use --output-in-csv flag to output results as CSV instead of Excel.
 
 Examples:
   npm start -- --csv questions.csv
-  npm start -- --csv questions.csv answers.csv
+  npm start -- --csv questions.csv answers.xlsx
+  npm start -- --csv questions.csv --output-in-csv
+  npm start -- --csv questions.csv --output-in-csv answers.csv
 `)
 }
 
@@ -285,7 +391,22 @@ const main = async () => {
   if (args.length >= 2 && args[0] === '--csv') {
     // CSV mode
     const inputCsvPath = args[1]
-    const outputCsvPath = args[2] || inputCsvPath.replace('.csv', '_with_answers.csv')
+    const outputAsCsv = args.includes('--output-in-csv')
+    
+    // Determine output file path
+    let outputCsvPath: string
+    if (outputAsCsv) {
+      // Find custom output path if provided after --output-in-csv
+      const csvFlagIndex = args.indexOf('--output-in-csv')
+      if (csvFlagIndex + 1 < args.length && !args[csvFlagIndex + 1].startsWith('--')) {
+        outputCsvPath = args[csvFlagIndex + 1]
+      } else {
+        outputCsvPath = inputCsvPath.replace('.csv', '_with_answers.csv')
+      }
+    } else {
+      // Excel output (default)
+      outputCsvPath = args[2] || inputCsvPath.replace('.csv', '_with_answers.xlsx')
+    }
     
     if (!fs.existsSync(inputCsvPath)) {
       console.error(`Error: CSV file not found: ${inputCsvPath}`)
@@ -294,10 +415,14 @@ const main = async () => {
     }
     
     try {
-      await processCSVQuestions(inputCsvPath, outputCsvPath)
-      console.log('\nCSV processing completed successfully!')
+      await processCSVQuestions(inputCsvPath, outputCsvPath, outputAsCsv)
+      if (outputAsCsv) {
+        console.log('\nCSV file processing completed successfully!')
+      } else {
+        console.log('\nExcel file processing completed successfully!')
+      }
     } catch (error) {
-      console.error('Error processing CSV:', error)
+      console.error('Error processing file:', error)
       process.exit(1)
     }
   } else {
