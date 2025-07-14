@@ -20,6 +20,9 @@ import { MsalCachePlugin } from './msalCachePlugin.js'
 interface QuestionRow {
   question: string
   answer?: string
+  citations?: string
+  citationTexts?: string
+  searchTerms?: string
   [key: string]: any
 }
 
@@ -136,15 +139,63 @@ const processCSVQuestions = async (csvFilePath: string, outputCsvPath: string): 
               const replies = await copilotClient.askQuestionAsync(question.question, conversationId)
               
               // Extract the answer from the replies
+              console.log(JSON.stringify(replies, null, 2));
               let answer = ''
+              let citations: any[] = []
+              let searchTerms: any[] = []
+              
               replies.forEach((act: Activity) => {
                 if (act.type === ActivityTypes.Message && act.text) {
                   answer += act.text + ' '
+                  
+                  // Extract citations and search terms from channelData
+                  if (act.channelData && act.channelData['pva:gpt-feedback']) {
+                    const gptFeedback = act.channelData['pva:gpt-feedback']
+                    
+                    // Extract textCitations
+                    if (gptFeedback.summarizationOpenAIResponse?.result?.textCitations) {
+                      citations = gptFeedback.summarizationOpenAIResponse.result.textCitations
+                    }
+                    
+                    // Extract searchTerms
+                    if (gptFeedback.searchTerms) {
+                      searchTerms = gptFeedback.searchTerms
+                    }
+                  }
                 }
               })
               
               question.answer = answer.trim()
+              
+              // Format citations for CSV
+              if (citations.length > 0) {
+                const citationSummary = citations.map(citation => {
+                  return `Title: ${citation.title || 'N/A'}\nURL: ${citation.url || 'N/A'}\nText: ${(citation.text || '').substring(0, 200)}...`
+                }).join('\n\n---\n\n')
+                question.citations = citationSummary
+                
+                // Store full citation texts in separate column
+                const citationFullTexts = citations.map(citation => {
+                  return `Title: ${citation.title || 'N/A'}\nURL: ${citation.url || 'N/A'}\nFull Text: ${citation.text || 'N/A'}`
+                }).join('\n\n---\n\n')
+                question.citationTexts = citationFullTexts
+              }
+              
+              // Format search terms for CSV
+              if (searchTerms.length > 0) {
+                const searchTermsSummary = searchTerms.map(term => {
+                  return `Source: ${term.source || 'N/A'}, Term: ${term.term || 'N/A'}`
+                }).join('\n')
+                question.searchTerms = searchTermsSummary
+              }
+              
               console.log(`Answer: ${question.answer}`)
+              if (question.citations) {
+                console.log(`Citations found: ${citations.length} items`)
+              }
+              if (question.searchTerms) {
+                console.log(`Search terms: ${question.searchTerms}`)
+              }
               
             } catch (error) {
               console.error(`Error processing question "${question.question}":`, error)
@@ -185,9 +236,12 @@ const writeResultsToCSV = async (results: QuestionRow[], outputPath: string): Pr
     Object.keys(row).forEach(key => allColumns.add(key))
   })
   
-  // Ensure 'question' and 'answer' columns are included
+  // Ensure 'question', 'answer', 'citations', 'citationTexts', and 'searchTerms' columns are included
   allColumns.add('question')
   allColumns.add('answer')
+  allColumns.add('citations')
+  allColumns.add('citationTexts')
+  allColumns.add('searchTerms')
   
   const columnNames = Array.from(allColumns)
   const csvWriter = createCsvWriter.createObjectCsvWriter({
